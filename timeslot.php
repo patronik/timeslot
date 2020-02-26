@@ -168,7 +168,7 @@ class Time_Slot_Generator {
         $this->readToken();
         if ($this->token == 'within') {
             $this->readToken();
-            if (!preg_match('#[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}#', $this->token)) {
+            if (!preg_match('#^[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}$#', $this->token)) {
                 throw new Exception(
                     sprintf(
                         'Syntax error. Invalid working hours range format. State: %s', $this->currState
@@ -183,7 +183,7 @@ class Time_Slot_Generator {
             ];
         } else if ($this->token == 'at') {
             $this->readToken();
-            if (!preg_match('#[0-9]{2}:[0-9]{2}#', $this->token)) {
+            if (!preg_match('#^[0-9]{2}:[0-9]{2}$#', $this->token)) {
                 throw new Exception(
                     sprintf(
                         'Syntax error. Invalid working hours fixed time format. State: %s', $this->currState

@@ -4,6 +4,8 @@ class Time_Slot_Generator {
     /** Character supported in source **/
     const SUPPORTED_CHARS = 'a-zA-Z0-9:-';
 
+    protected $intervalUnits = ['hours', 'hour', 'minutes', 'minute', 'seconds', 'second'];
+
     protected $daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
     /** Current position in source **/
@@ -13,7 +15,10 @@ class Time_Slot_Generator {
     protected $src;
 
     protected $timeSlotInfo = [
-        'interval' => null, /** generation interval in minutes **/
+        'interval' => [ /** generation interval **/
+            'value' => null,
+            'unit' => null
+        ],
         'from' => null, /** starting date **/
         'to' => null, /** ending date **/
         'hours' => [
@@ -102,14 +107,16 @@ class Time_Slot_Generator {
             );
         }
 
-        $this->timeSlotInfo['interval'] = (int) $this->token;
+        $this->timeSlotInfo['interval']['value'] = (int) $this->token;
 
         $this->readToken();
-        if ($this->token != 'minutes') {
+        if (!in_array($this->token, $this->intervalUnits)) {
             throw new Exception(
-                sprintf('Syntax error. State: %s', $this->currState)
+                sprintf('Syntax error. Interval unit is not supported. State: %s', $this->currState)
             );
         }
+
+        $this->timeSlotInfo['interval']['unit'] = $this->token;
 
         return self::STATE_FROM;
     }
@@ -222,8 +229,9 @@ class Time_Slot_Generator {
 
     protected function timeToSeconds($time) : int
     {
-        list($hours, $minutes) = explode(':', $time);
-        return ((int)$hours * 60 * 60) + ((int)$minutes * 60);
+        $timeParts = explode(':', $time);
+        return ((int)$timeParts[0] * 60 * 60) + ((int)$timeParts[1] * 60)
+            + ((int)!empty($timeParts[2]) ? $timeParts[2] : 0);
     }
 
     public function parse(string $rule) : void
@@ -265,28 +273,37 @@ class Time_Slot_Generator {
     {
         $timeSlots = [];
 
+        if (in_array($this->timeSlotInfo['interval']['unit'], ['hours', 'hour'])) {
+            $timeStep = 3600;
+        } else if (in_array($this->timeSlotInfo['interval']['unit'], ['minutes', 'minute'])) {
+            $timeStep = 60;
+        } else {
+            $timeStep = 1;
+        }
+
         $currentTimestamp = $this->timeSlotInfo['from'];
         do {
             $currDay = strtolower(date('D', $currentTimestamp));
-            $seconds = $this->timeToSeconds(date('H:i', $currentTimestamp));
+            $seconds = $this->timeToSeconds(date('H:i:s', $currentTimestamp));
             foreach ($this->timeSlotInfo['hours'][$currDay]['at'] as $fixed) {
                 if ($seconds == $fixed) {
                     $timeSlots[] = date('Y-m-d H:i:s', $currentTimestamp);
                 }
             }
             foreach ($this->timeSlotInfo['hours'][$currDay]['ranges'] as $range) {
-                if ($seconds == $range['from'] || $seconds == $range['to']) {
+                if ($seconds == $range['from']) {
                     $timeSlots[] = date('Y-m-d H:i:s', $currentTimestamp);
                 } else if ($seconds > $range['from'] && $seconds < $range['to']) {
-                    if ((($seconds - $range['from']) / 60) % $this->timeSlotInfo['interval'] == 0) {
+                    if ((($seconds - $range['from']) / $timeStep) % $this->timeSlotInfo['interval']['value'] == 0) {
                         $timeSlots[] = date('Y-m-d H:i:s', $currentTimestamp);
                     }
+                } else if ($seconds == $range['to']) {
+                    $timeSlots[] = date('Y-m-d H:i:s', $currentTimestamp);
                 }
             }
-            $currentTimestamp += 60; // 1 minute step
+            $currentTimestamp += $timeStep;
         } while ($currentTimestamp <= $this->timeSlotInfo['to']);
 
         return $timeSlots;
     }
 }
-

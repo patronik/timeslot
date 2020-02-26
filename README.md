@@ -49,7 +49,6 @@ You are visiting gym on Mondays at 17:00, Wednesdays at 17:00 and Saturdays at 1
 $parser = new Time_Slot_Generator();
 $parser->parse(
     <<<RULE
-EVERY 1 HOUR 
 FROM 2020-03-02
 MON AT 17:00
 WED AT 17:00
@@ -225,7 +224,7 @@ Array
     [156] => 2021-03-01 17:00:00
 )
 ```
-As you see, you are going to visit gym 157 times in 1 year.
+As you see, you are going to visit gym 157 times.
 
 ## Conclusions
 Using this script we can generate time slots for different recurring activities and then send them to you customers so they will be able to choose desired time.

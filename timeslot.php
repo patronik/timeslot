@@ -32,6 +32,9 @@ class Time_Slot_Generator {
         ]
     ];
 
+    /** @var Current day of week */
+    protected $currDay;
+
     /** Current parser state **/
     protected $currState;
 
@@ -40,7 +43,8 @@ class Time_Slot_Generator {
     const STATE_FROM     = 2;
     const STATE_TO       = 3;
     const STATE_DAY      = 4;
-    const STATE_END      = 5;
+    const STATE_HOURS    = 5;
+    const STATE_END      = 6;
 
     /** Last read token **/
     protected $token;
@@ -94,6 +98,11 @@ class Time_Slot_Generator {
     protected function parseInterval() : int
     {
         $this->readToken();
+        if ($this->token == 'from') {
+            $this->returnToken();
+            return self::STATE_FROM;
+        }
+
         if ($this->token != 'every') {
             throw new Exception(
                 sprintf('Syntax error. State: %s', $this->currState)
@@ -103,7 +112,7 @@ class Time_Slot_Generator {
         $this->readToken();
         if (!is_numeric($this->token)) {
             throw new Exception(
-                sprintf('Syntax error. Inverval value must be an integer. State: %s', $this->currState)
+                sprintf('Syntax error. Interval value must be an integer. State: %s', $this->currState)
             );
         }
 
@@ -163,7 +172,7 @@ class Time_Slot_Generator {
         return self::STATE_END;
     }
 
-    protected function parseHours($day) : void
+    protected function parseHours() : int
     {
         $this->readToken();
         if ($this->token == 'within') {
@@ -177,7 +186,7 @@ class Time_Slot_Generator {
                 );
             }
             list($timeFrom, $timeTo) = explode('-', $this->token);
-            $this->timeSlotInfo['hours'][$day]['ranges'][] = [
+            $this->timeSlotInfo['hours'][$this->currDay]['ranges'][] = [
                 'from' => $this->timeToSeconds($timeFrom),
                 'to' => $this->timeToSeconds($timeTo)
             ];
@@ -190,31 +199,15 @@ class Time_Slot_Generator {
                     )
                 );
             }
-            $this->timeSlotInfo['hours'][$day]['at'][] = $this->timeToSeconds($this->token);
+            $this->timeSlotInfo['hours'][$this->currDay]['at'][] = $this->timeToSeconds($this->token);
         } else {
             throw new Exception(sprintf('Syntax error. State: %s', $this->currState));
         }
-    }
 
-    protected function parseDay() : int
-    {
         $this->readToken();
-        if (!in_array($this->token, $this->daysOfWeek)) {
-            throw new Exception(
-                sprintf('Syntax error. Invalid name of week day. State: %s', $this->currState)
-            );
-        }
-        $day = $this->token;
-
-        $this->parseHours($day);
-        $this->readToken();
-
-        while($this->token == 'and') {
-            $this->parseHours($day);
-            $this->readToken();
-        }
-
-        if (in_array($this->token, $this->daysOfWeek)) {
+        if($this->token == 'and') {
+            return self::STATE_HOURS;
+        } else if (in_array($this->token, $this->daysOfWeek)) {
             $this->returnToken();
             return self::STATE_DAY;
         } else if ($this->token == 'to') {
@@ -225,6 +218,20 @@ class Time_Slot_Generator {
         throw new Exception(
             sprintf('Unexpected token. State: %s', $this->currState)
         );
+    }
+
+    protected function parseDay() : int
+    {
+        $this->readToken();
+        if (!in_array($this->token, $this->daysOfWeek)) {
+            throw new Exception(
+                sprintf('Syntax error. Invalid name of week day. State: %s', $this->currState)
+            );
+        }
+
+        $this->currDay = $this->token;
+
+        return self::STATE_HOURS;
     }
 
     protected function timeToSeconds($time) : int
@@ -251,6 +258,9 @@ class Time_Slot_Generator {
                         break;
                     case self::STATE_DAY:
                         $this->currState = $this->parseDay();
+                        break;
+                    case self::STATE_HOURS:
+                        $this->currState = $this->parseHours();
                         break;
                     case self::STATE_TO:
                         $this->currState = $this->parseTo();
